@@ -20,7 +20,7 @@ For example, if you create a file `foo.php` containing code...
 echo "This is the output of foo.php";
 ```
 
-...then you'll see this output when you visit `/processwire/setup/render-file/foo/` (assuming the default ProcessWire admin page name and the default ProcessRenderFile page name).
+...then you'll see this output when you visit `/processwire/setup/render-file/foo/` (assuming the default ProcessWire admin page name and the default ProcessRenderFile page name). In the render file you can use all the ProcessWire API variables like `$pages`, `$input`, etc, as you would in a template file.
 
 If you create `foo.js` and `foo.css` (or `foo.scss` if you have ProCache installed) then those assets will be automatically loaded when you visit `/processwire/setup/render-file/foo/`.
 
