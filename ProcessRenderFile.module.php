@@ -28,6 +28,15 @@ class ProcessRenderFile extends Process implements ConfigurableModule {
 	 * @return string
 	 */
 	public function ___execute() {
+		$page = $this->wire()->page;
+		$render_files = $this->getRenderFiles();
+		foreach($render_files as $render_file) {
+			// Remove ".php" and convert to lowercase
+			$render_file_base = strtolower(substr($render_file, 0, -4));
+			if($render_file_base === $page->name) {
+				return $this->renderProcessFile($render_file);
+			}
+		}
 		$menu_data = $this->getMenuData();
 		if($menu_data) {
 			$base_url = $this->wire()->page->url;
@@ -48,9 +57,6 @@ class ProcessRenderFile extends Process implements ConfigurableModule {
 	 * @return string
 	 */
 	public function ___executeUnknown() {
-		$config = $this->wire()->config;
-		$dir = $this->getFilesDir();
-		$path = $this->getFilesDir(true);
 		$segment = $this->wire()->input->urlSegment1;
 		$segment_file = $segment . '.php';
 		$render_file = null;
@@ -64,35 +70,7 @@ class ProcessRenderFile extends Process implements ConfigurableModule {
 
 		// If the render file exists
 		if($render_file) {
-			$render_file_base = substr($render_file, 0, -4); // Remove ".php"
-
-			// Default headline: can be overridden in render file by $this->wire('processHeadline');
-			$this->headline($this->fileToLabel($render_file_base));
-
-			// Load any related assets
-			$js_path = $path . $render_file_base . '.js';
-			if(is_file($js_path)) {
-				$js_url = $dir . $render_file_base . '.js';
-				$modified = filemtime($js_path);
-				$config->scripts->add($js_url . "?v=$modified");
-			}
-			$procache_installed = $this->wire()->modules->isInstalled('ProCache');
-			$scss_path = $path . $render_file_base . '.scss';
-			if($procache_installed && is_file($scss_path)) {
-				$scss_url = $dir . $render_file_base . '.scss';
-				$css_url = $this->wire()->procache->css($scss_url);
-				$config->styles->add($css_url);
-			} else {
-				$css_path = $path . $render_file_base . '.css';
-				if(is_file($css_path)) {
-					$css_url =  $dir . $render_file_base . '.css';
-					$modified = filemtime($css_path);
-					$config->styles->add($css_url . "?v=$modified");
-				}
-			}
-
-			// Render the file
-			return $this->wire()->files->render($path . $render_file);
+			return $this->renderProcessFile($render_file);
 		}
 
 		// Render file not found
@@ -103,14 +81,63 @@ class ProcessRenderFile extends Process implements ConfigurableModule {
 	}
 
 	/**
+	 * Render a file and load any related assets
+	 *
+	 * @return string
+	 */
+	public function renderProcessFile($filename) {
+		$config = $this->wire()->config;
+		$page = $this->wire()->page;
+		$dir = $this->getFilesDir();
+		$path = $this->getFilesDir(true);
+		$render_file_base = substr($filename, 0, -4); // Remove ".php"
+		$label = $this->fileToLabel($render_file_base);
+
+		// Override default final breadcrumb
+		$this->breadcrumb($page->url, $page->title);
+
+		// Browser title: can be overridden in render file by $this->wire('processBrowserTitle');
+		$this->wire('processBrowserTitle', $label);
+
+		// Headline: can be overridden in render file by $this->wire('processHeadline');
+		$this->headline($label);
+
+		// Load any related assets
+		$js_path = $path . $render_file_base . '.js';
+		if(is_file($js_path)) {
+			$js_url = $dir . $render_file_base . '.js';
+			$modified = filemtime($js_path);
+			$config->scripts->add($js_url . "?v=$modified");
+		}
+		$procache_installed = $this->wire()->modules->isInstalled('ProCache');
+		$scss_path = $path . $render_file_base . '.scss';
+		if($procache_installed && is_file($scss_path)) {
+			$scss_url = $dir . $render_file_base . '.scss';
+			$css_url = $this->wire()->procache->css($scss_url);
+			$config->styles->add($css_url);
+		} else {
+			$css_path = $path . $render_file_base . '.css';
+			if(is_file($css_path)) {
+				$css_url =  $dir . $render_file_base . '.css';
+				$modified = filemtime($css_path);
+				$config->styles->add($css_url . "?v=$modified");
+			}
+		}
+
+		// Render the file
+		return $this->wire()->files->render($path . $filename);
+	}
+
+	/**
 	 * Get an array of allowed menu data for render files
 	 *
 	 * @return array
 	 */
 	public function ___getMenuData() {
+		$prop = $this->wire()->page->id . '_menuItems';
 		$data = [];
-		if($this->menuItems) {
-			foreach($this->menuItems as $render_file) {
+		if($this->$prop) {
+			foreach($this->$prop as $render_file) {
 				$render_file_base = substr($render_file, 0, -4); // Remove ".php"
 				$label = $this->fileToLabel($render_file_base);
 				$segment = strtolower($render_file_base);
@@ -126,7 +153,7 @@ class ProcessRenderFile extends Process implements ConfigurableModule {
 	 * @param string $basename
 	 * @return string
 	 */
-	public function fileToLabel($basename) {
+	public function ___fileToLabel($basename) {
 		$has_caps = $basename !== strtolower($basename);
 		$words = explode('-', $basename);
 		// If the basename is not already capitalised, capitalise the first letter of each word
@@ -149,11 +176,16 @@ class ProcessRenderFile extends Process implements ConfigurableModule {
 	/**
 	 * Get the render files in /site/templates/ProcessRenderFile/
 	 *
+	 * @param array $exclude
 	 * @return array
 	 */
-	public function getRenderFiles() {
+	public function getRenderFiles($exclude = []) {
 		$path = $this->getFilesDir(true);
-		return $this->wire()->files->find($path, ['extensions' => 'php', 'returnRelative' => true]);
+		$render_files = $this->wire()->files->find($path, ['extensions' => 'php', 'returnRelative' => true]);
+		foreach($render_files as $key => $render_file) {
+			if(in_array($render_file, $exclude)) unset($render_files[$key]);
+		}
+		return $render_files;
 	}
 
 	/**
@@ -163,22 +195,34 @@ class ProcessRenderFile extends Process implements ConfigurableModule {
 	 */
 	public function getModuleConfigInputfields($inputfields) {
 		$modules = $this->wire()->modules;
-		$render_files = $this->getRenderFiles();
+		$exclude = [];
+		$process_pages = $this->wire()->pages->find("process=$this, include=hidden");
+		foreach($process_pages as $process_page) {
+			$exclude[] = $process_page->name . '.php';
+		}
+		$render_files = $this->getRenderFiles($exclude);
 
 		if($render_files) {
-			/** @var InputfieldCheckboxes $f */
-			$f = $modules->get('InputfieldCheckboxes');
-			$f_name = 'menuItems';
-			$f->name = $f_name;
-			$f->label = $this->_('Menu items');
-			$f->description = $this->_('Items selected here will appear in the admin flyout menu and in the list shown when the Process page is viewed without a URL segment.');
-			foreach($render_files as $render_file) {
-				$render_file_base = substr($render_file, 0, -4); // Remove ".php"
-				$label = $this->fileToLabel($render_file_base);
-				$f->addOption($render_file, $label);
+			/** @var InputfieldFieldset $fs */
+			$fs = $modules->get('InputfieldFieldset');
+			$fs->label = $this->_('Menu items');
+			$fs->description = $this->_('Items selected here will appear in the admin flyout menu, and will be listed as the default output when no render file for the Process page exists.');
+			$inputfields->add($fs);
+
+			foreach($process_pages as $process_page) {
+				/** @var InputfieldCheckboxes $f */
+				$f = $modules->get('InputfieldCheckboxes');
+				$f_name = $process_page->id . '_menuItems';
+				$f->name = $f_name;
+				$f->label = $process_page->title;
+				foreach($render_files as $render_file) {
+					$render_file_base = substr($render_file, 0, -4); // Remove ".php"
+					$label = $this->fileToLabel($render_file_base);
+					$f->addOption($render_file, $label);
+				}
+				$f->value = $this->$f_name;
+				$fs->add($f);
 			}
-			$f->value = $this->$f_name;
-			$inputfields->add($f);
 		}
 	}
 
