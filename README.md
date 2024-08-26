@@ -4,7 +4,7 @@ A Process module that renders markup from files in `/site/templates/ProcessRende
 
 ## Process page
 
-When you install the module a page with the name "render-file" and the title "Render File" is created under Setup. To change the page name or title expand Page List to Admin > Setup > Render File and open the page for editing. 
+When you install the module a page with the name "render-file" and the title "Render File" is created under Setup. To change the page name or title, expand Page List to Admin > Setup > Render File and open the page for editing. 
 
 Tip: if you create a new text field with the name "page_icon" and add it to the core "admin" template you can set a custom menu icon for the page by entering the icon name into the field. E.g. enter "smile-o" to use a smiley icon for the page.
 
