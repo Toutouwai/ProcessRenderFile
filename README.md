@@ -31,7 +31,7 @@ $this->wire('processBrowserTitle', 'Custom browser title');
 $this->wire('processHeadline', 'Custom headline');
 ```
 
-### Render file for the Process page
+## Render file for the Process page
 
 If you create a render file that has the same name as the ProcessRenderFile Process page then this file will be rendered when the Process page is viewed without any URL segment. So for the default ProcessRenderFile page name you would create `render-file.php`. Note that this will override the default list output described below.
 
